@@ -1,0 +1,44 @@
+modules:
+  macro:
+    - key: mermaid-diagram
+      resource: confluence-macro
+      resolver:
+        function: resolver
+      title: Mermaid Diagram
+      description: Renders Mermaid diagrams from source block
+
+  jira:issuePanel:
+    - key: mermaid-panel
+      resource: jira-panel
+      resolver:
+        function: resolver
+      title: Mermaid Diagrams
+      icon: resource:mermaid-icon;mermaid.svg
+
+  function:
+    - key: resolver
+      handler: index.handler
+
+resources:
+  - key: confluence-macro
+    path: static/confluence-macro/build
+  - key: jira-panel
+    path: static/jira-panel/build
+  - key: mermaid-icon
+    path: static/icons/build
+
+permissions:
+  scopes:
+    - read:page:confluence
+    - write:page:confluence
+    - read:jira-work
+  content:
+    scripts:
+      - 'unsafe-inline'
+    styles:
+      - 'unsafe-inline'
+
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/da985367-bc10-4667-8cc3-0c06d80ecfbf

@@ -1,0 +1,29 @@
+{
+  "name": "re-mermaid",
+  "version": "1.0.0",
+  "description": "Atlassian Forge app for Mermaid diagrams in Confluence and Jira",
+  "main": "src/resolvers/index.js",
+  "scripts": {
+    "build": "npm run build:confluence && npm run build:jira",
+    "build:confluence": "cd static/confluence-macro && npm run build",
+    "build:jira": "cd static/jira-panel && npm run build",
+    "lint": "forge lint",
+    "deploy": "npm run build && forge deploy",
+    "install:all": "npm install && cd static/confluence-macro && npm install && cd ../jira-panel && npm install"
+  },
+  "keywords": [
+    "atlassian",
+    "forge",
+    "mermaid",
+    "confluence",
+    "jira"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@forge/cli": "^12.12.0"
+  },
+  "dependencies": {
+    "@forge/api": "^4.0.0",
+    "@forge/resolver": "^1.6.0"
+  }
+}

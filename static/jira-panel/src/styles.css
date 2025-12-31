@@ -1,0 +1,143 @@
+:root {
+  --bg-color: #ffffff;
+  --text-color: #172b4d;
+  --border-color: #dfe1e6;
+  --button-bg: #0052cc;
+  --button-text: #ffffff;
+  --error-bg: #ffebe6;
+  --error-text: #de350b;
+  --editor-bg: #f4f5f7;
+}
+
+[data-color-mode="dark"],
+.dark-mode {
+  --bg-color: #1d2125;
+  --text-color: #b6c2cf;
+  --border-color: #3d474f;
+  --button-bg: #579dff;
+  --button-text: #1d2125;
+  --error-bg: #5d1f1a;
+  --error-text: #fd9891;
+  --editor-bg: #22272b;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.mermaid-container {
+  padding: 16px;
+  min-height: 100px;
+}
+
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.mermaid-button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 3px;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+
+.mermaid-button:hover {
+  opacity: 0.85;
+}
+
+.mermaid-button--secondary {
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.mermaid-error {
+  padding: 12px;
+  background-color: var(--error-bg);
+  color: var(--error-text);
+  border-radius: 3px;
+  margin-top: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.mermaid-editor {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mermaid-editor__source {
+  flex: 1;
+  min-width: 300px;
+}
+
+.mermaid-editor__preview {
+  flex: 1;
+  min-width: 300px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.mermaid-editor__textarea {
+  width: 100%;
+  min-height: 300px;
+  padding: 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background-color: var(--editor-bg);
+  color: var(--text-color);
+  resize: vertical;
+}
+
+.mermaid-editor__textarea:focus {
+  outline: 2px solid var(--button-bg);
+  outline-offset: -2px;
+}
+
+.mermaid-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.mermaid-version-info {
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.6;
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .mermaid-editor {
+    flex-direction: column;
+  }
+}
