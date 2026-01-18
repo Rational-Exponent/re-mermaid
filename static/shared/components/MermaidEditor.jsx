@@ -45,10 +45,13 @@ const TEMPLATES = {
     Task 3: 2024-01-15, 10d`
 };
 
-const MermaidEditor = ({ source, onSave, onCancel, isDarkMode }) => {
+const MermaidEditor = ({ source, onSave, onCancel, isDarkMode, isSaving = false }) => {
   const [editedSource, setEditedSource] = useState(source);
   const [previewSource, setPreviewSource] = useState(source);
-  const [isSaving, setIsSaving] = useState(false);
+  const [localSaving, setLocalSaving] = useState(false);
+
+  // Use external isSaving if provided, otherwise use local state
+  const savingState = isSaving !== undefined ? isSaving : localSaving;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -59,13 +62,15 @@ const MermaidEditor = ({ source, onSave, onCancel, isDarkMode }) => {
   }, [editedSource]);
 
   const handleSave = useCallback(async () => {
-    setIsSaving(true);
+    if (savingState) return; // Prevent double-save
+
+    setLocalSaving(true);
     try {
       await onSave(editedSource);
     } finally {
-      setIsSaving(false);
+      setLocalSaving(false);
     }
-  }, [editedSource, onSave]);
+  }, [editedSource, onSave, savingState]);
 
   const handleInsertTemplate = useCallback((templateKey) => {
     setEditedSource(TEMPLATES[templateKey]);
@@ -77,14 +82,16 @@ const MermaidEditor = ({ source, onSave, onCancel, isDarkMode }) => {
         <button
           className="mermaid-button"
           onClick={handleSave}
-          disabled={isSaving}
+          disabled={savingState}
+          aria-label="Save diagram changes"
         >
-          {isSaving ? 'Saving...' : 'Save'}
+          {savingState ? 'Saving...' : 'Save'}
         </button>
         <button
           className="mermaid-button mermaid-button--secondary"
           onClick={onCancel}
-          disabled={isSaving}
+          disabled={savingState}
+          aria-label="Cancel editing"
         >
           Cancel
         </button>
@@ -94,6 +101,7 @@ const MermaidEditor = ({ source, onSave, onCancel, isDarkMode }) => {
           onChange={(e) => e.target.value && handleInsertTemplate(e.target.value)}
           value=""
           style={{ cursor: 'pointer' }}
+          aria-label="Insert diagram template"
         >
           <option value="">Insert template...</option>
           <option value="flowchart">Flowchart</option>
@@ -113,6 +121,7 @@ const MermaidEditor = ({ source, onSave, onCancel, isDarkMode }) => {
             onChange={(e) => setEditedSource(e.target.value)}
             placeholder="Enter Mermaid diagram syntax..."
             spellCheck={false}
+            aria-label="Mermaid diagram source code"
           />
         </div>
         <div className="mermaid-editor__preview">

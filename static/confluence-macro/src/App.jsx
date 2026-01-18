@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke, view } from '@forge/bridge';
-import MermaidRenderer from './components/MermaidRenderer';
-import MermaidEditor from './components/MermaidEditor';
+import {
+  MermaidRenderer,
+  MermaidEditor,
+  ErrorBoundary,
+  useDarkMode,
+  svgToBase64,
+  downloadFile
+} from '@shared';
 
 const DEFAULT_DIAGRAM = `graph TD
     A[Start] --> B{Decision}
@@ -15,19 +21,16 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [context, setContext] = useState(null);
   const [version, setVersion] = useState(null);
+  const isDarkMode = useDarkMode();
 
   useEffect(() => {
     const init = async () => {
       try {
         const ctx = await view.getContext();
         setContext(ctx);
-
-        const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
-        setIsDarkMode(colorScheme.matches);
-        colorScheme.addEventListener('change', (e) => setIsDarkMode(e.matches));
 
         if (ctx?.extension?.content?.id) {
           const pageId = ctx.extension.content.id;
@@ -45,7 +48,9 @@ function App() {
           setSource(DEFAULT_DIAGRAM);
         }
       } catch (err) {
-        console.error('Init error:', err);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Init error:', err);
+        }
         setError(err.message);
         setSource(DEFAULT_DIAGRAM);
       } finally {
@@ -62,6 +67,9 @@ function App() {
       return;
     }
 
+    if (isSaving) return; // Prevent double-save
+
+    setIsSaving(true);
     try {
       const pageId = context.extension.content.id;
       const sourceName = context.extension.config?.source || null;
@@ -78,13 +86,18 @@ function App() {
         setVersion(result.newVersion);
         setIsEditing(false);
         setError(null);
+      } else if (result.conflict) {
+        // Handle version conflict
+        setError(`${result.error} (Your version: ${version}, Server version: ${result.serverVersion || 'unknown'})`);
       } else {
         setError(result.error);
       }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsSaving(false);
     }
-  }, [context, version]);
+  }, [context, version, isSaving]);
 
   const handleExport = useCallback(async (format) => {
     const svgElement = document.querySelector('.mermaid-diagram svg');
@@ -120,61 +133,93 @@ function App() {
         }, 'image/png');
       };
 
-      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      img.onerror = () => {
+        setError('Failed to export PNG');
+      };
+
+      img.src = 'data:image/svg+xml;base64,' + svgToBase64(svgData);
     }
   }, [isDarkMode]);
-
-  const downloadFile = (content, filename, mimeType) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   if (loading) {
     return <div className="mermaid-loading">Loading diagram...</div>;
   }
 
   return (
-    <div className={`mermaid-container ${isDarkMode ? 'dark-mode' : ''}`}>
-      <div className="mermaid-toolbar">
-        {!isEditing && (
-          <>
-            <button className="mermaid-button" onClick={() => setIsEditing(true)}>
-              Edit
+    <ErrorBoundary>
+      <div className={`mermaid-container ${isDarkMode ? 'dark-mode' : ''}`}>
+        <div className="mermaid-toolbar">
+          {!isEditing && (
+            <>
+              <button
+                className="mermaid-button"
+                onClick={() => setIsEditing(true)}
+                aria-label="Edit Mermaid diagram"
+              >
+                Edit
+              </button>
+              <button
+                className="mermaid-button mermaid-button--secondary"
+                onClick={() => handleExport('png')}
+                aria-label="Export diagram as PNG"
+              >
+                Export PNG
+              </button>
+              <button
+                className="mermaid-button mermaid-button--secondary"
+                onClick={() => handleExport('svg')}
+                aria-label="Export diagram as SVG"
+              >
+                Export SVG
+              </button>
+            </>
+          )}
+        </div>
+
+        {error && (
+          <div className="mermaid-error" role="alert">
+            {error}
+            <button
+              onClick={() => setError(null)}
+              style={{
+                marginLeft: '12px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'inherit',
+                textDecoration: 'underline'
+              }}
+            >
+              Dismiss
             </button>
-            <button className="mermaid-button mermaid-button--secondary" onClick={() => handleExport('png')}>
-              Export PNG
-            </button>
-            <button className="mermaid-button mermaid-button--secondary" onClick={() => handleExport('svg')}>
-              Export SVG
-            </button>
-          </>
+          </div>
+        )}
+
+        {isSaving && (
+          <div className="mermaid-loading" style={{ padding: '8px 0' }}>
+            Saving changes...
+          </div>
+        )}
+
+        {isEditing ? (
+          <MermaidEditor
+            source={source}
+            onSave={handleSave}
+            onCancel={() => setIsEditing(false)}
+            isDarkMode={isDarkMode}
+            isSaving={isSaving}
+          />
+        ) : (
+          <MermaidRenderer source={source} isDarkMode={isDarkMode} />
+        )}
+
+        {version && (
+          <div className="mermaid-version-info">
+            Version: {version}
+          </div>
         )}
       </div>
-
-      {error && <div className="mermaid-error">{error}</div>}
-
-      {isEditing ? (
-        <MermaidEditor
-          source={source}
-          onSave={handleSave}
-          onCancel={() => setIsEditing(false)}
-          isDarkMode={isDarkMode}
-        />
-      ) : (
-        <MermaidRenderer source={source} isDarkMode={isDarkMode} />
-      )}
-
-      {version && (
-        <div className="mermaid-version-info">
-          Version: {version}
-        </div>
-      )}
-    </div>
+    </ErrorBoundary>
   );
 }
 

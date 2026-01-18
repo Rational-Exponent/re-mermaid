@@ -1,0 +1,12 @@
+{
+  "name": "@re-mermaid/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "mermaid": "^11.0.0",
+    "dompurify": "^3.0.0"
+  }
+}

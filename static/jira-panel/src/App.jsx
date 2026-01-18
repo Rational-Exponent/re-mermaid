@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke, view } from '@forge/bridge';
-import MermaidRenderer from './components/MermaidRenderer';
-import MermaidEditor from './components/MermaidEditor';
+import {
+  MermaidRenderer,
+  MermaidEditor,
+  ErrorBoundary,
+  useDarkMode,
+  svgToBase64,
+  downloadFile
+} from '@shared';
 
 const MERMAID_PATTERN = /```mermaid\n([\s\S]*?)```/g;
 
@@ -10,8 +16,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [context, setContext] = useState(null);
+  const isDarkMode = useDarkMode();
 
   useEffect(() => {
     const init = async () => {
@@ -19,15 +25,13 @@ function App() {
         const ctx = await view.getContext();
         setContext(ctx);
 
-        const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
-        setIsDarkMode(colorScheme.matches);
-        colorScheme.addEventListener('change', (e) => setIsDarkMode(e.matches));
-
         if (ctx?.extension?.issue?.key) {
           await loadDiagrams(ctx.extension.issue.key);
         }
       } catch (err) {
-        console.error('Init error:', err);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Init error:', err);
+        }
         setError(err.message);
       } finally {
         setLoading(false);
@@ -92,19 +96,13 @@ function App() {
         }, 'image/png');
       };
 
-      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      img.onerror = () => {
+        setError('Failed to export PNG');
+      };
+
+      img.src = 'data:image/svg+xml;base64,' + svgToBase64(svgData);
     }
   }, [isDarkMode]);
-
-  const downloadFile = (content, filename, mimeType) => {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   if (loading) {
     return <div className="mermaid-loading">Loading diagrams...</div>;
@@ -124,47 +122,68 @@ function App() {
   }
 
   return (
-    <div className={`mermaid-container ${isDarkMode ? 'dark-mode' : ''}`}>
-      {error && <div className="mermaid-error">{error}</div>}
-
-      {diagrams.map((diagram, index) => (
-        <div key={diagram.id} style={{ marginBottom: '24px' }}>
-          <div className="mermaid-toolbar">
-            <span style={{ fontWeight: 500, marginRight: 'auto' }}>
-              Diagram {index + 1}
-            </span>
+    <ErrorBoundary>
+      <div className={`mermaid-container ${isDarkMode ? 'dark-mode' : ''}`}>
+        {error && (
+          <div className="mermaid-error" role="alert">
+            {error}
             <button
-              className="mermaid-button mermaid-button--secondary"
-              onClick={() => handleExport(index, 'png')}
+              onClick={() => setError(null)}
+              style={{
+                marginLeft: '12px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'inherit',
+                textDecoration: 'underline'
+              }}
             >
-              Export PNG
-            </button>
-            <button
-              className="mermaid-button mermaid-button--secondary"
-              onClick={() => handleExport(index, 'svg')}
-            >
-              Export SVG
+              Dismiss
             </button>
           </div>
+        )}
 
-          {editingIndex === index ? (
-            <MermaidEditor
-              source={diagram.source}
-              onSave={(newSource) => {
-                const newDiagrams = [...diagrams];
-                newDiagrams[index] = { ...diagram, source: newSource };
-                setDiagrams(newDiagrams);
-                setEditingIndex(null);
-              }}
-              onCancel={() => setEditingIndex(null)}
-              isDarkMode={isDarkMode}
-            />
-          ) : (
-            <MermaidRenderer source={diagram.source} isDarkMode={isDarkMode} />
-          )}
-        </div>
-      ))}
-    </div>
+        {diagrams.map((diagram, index) => (
+          <div key={diagram.id} style={{ marginBottom: '24px' }}>
+            <div className="mermaid-toolbar">
+              <span style={{ fontWeight: 500, marginRight: 'auto' }}>
+                Diagram {index + 1}
+              </span>
+              <button
+                className="mermaid-button mermaid-button--secondary"
+                onClick={() => handleExport(index, 'png')}
+                aria-label={`Export diagram ${index + 1} as PNG`}
+              >
+                Export PNG
+              </button>
+              <button
+                className="mermaid-button mermaid-button--secondary"
+                onClick={() => handleExport(index, 'svg')}
+                aria-label={`Export diagram ${index + 1} as SVG`}
+              >
+                Export SVG
+              </button>
+            </div>
+
+            {editingIndex === index ? (
+              <MermaidEditor
+                source={diagram.source}
+                onSave={(newSource) => {
+                  const newDiagrams = [...diagrams];
+                  newDiagrams[index] = { ...diagram, source: newSource };
+                  setDiagrams(newDiagrams);
+                  setEditingIndex(null);
+                }}
+                onCancel={() => setEditingIndex(null)}
+                isDarkMode={isDarkMode}
+              />
+            ) : (
+              <MermaidRenderer source={diagram.source} isDarkMode={isDarkMode} />
+            )}
+          </div>
+        ))}
+      </div>
+    </ErrorBoundary>
   );
 }
 

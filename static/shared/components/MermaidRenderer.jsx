@@ -1,9 +1,24 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
+
+// Simple hash function for stable diagram IDs
+const hashCode = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+};
 
 const MermaidRenderer = ({ source, isDarkMode }) => {
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
+
+  // Stable ID based on content hash for better caching
+  const diagramId = useMemo(() => `mermaid-${hashCode(source || '')}`, [source]);
 
   useEffect(() => {
     const theme = isDarkMode ? 'dark' : 'default';
@@ -52,19 +67,28 @@ const MermaidRenderer = ({ source, isDarkMode }) => {
         containerRef.current.innerHTML = '';
 
         const { svg } = await mermaid.render(
-          `mermaid-${Date.now()}`,
+          diagramId,
           source.trim()
         );
 
-        containerRef.current.innerHTML = svg;
+        // Sanitize SVG output to prevent XSS attacks
+        const sanitizedSvg = DOMPurify.sanitize(svg, {
+          USE_PROFILES: { svg: true, svgFilters: true },
+          ADD_TAGS: ['foreignObject'],
+          ADD_ATTR: ['target', 'xlink:href']
+        });
+
+        containerRef.current.innerHTML = sanitizedSvg;
       } catch (err) {
-        console.error('Mermaid render error:', err);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Mermaid render error:', err);
+        }
         setError(err.message || 'Failed to render diagram');
       }
     };
 
     renderDiagram();
-  }, [source, isDarkMode]);
+  }, [source, isDarkMode, diagramId]);
 
   if (error) {
     return (
