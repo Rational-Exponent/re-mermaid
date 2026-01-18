@@ -6,10 +6,11 @@ Atlassian Forge app for editing and displaying Mermaid diagrams in Confluence an
 
 - **Mermaid Diagram Rendering** - Supports all Mermaid diagram types (flowcharts, sequence, class, ER, gantt, etc.)
 - **Dark Theme Support** - Auto-detects and adapts to Confluence/Jira dark mode
-- **Inline Editor** - Edit diagrams with live preview
+- **Inline Editor** - Edit diagrams with live preview and template snippets
 - **Export** - Export diagrams to PNG/SVG for use in documents
 - **AI-Friendly** - Source stored in native Confluence elements, readable by AI tools
-- **Version Tracking** - Displays page version for change tracking
+- **Version Tracking** - Displays page version with conflict detection
+- **Security** - XSS protection via DOMPurify, input validation, strict Mermaid mode
 
 ## Installation
 
@@ -81,8 +82,26 @@ forge deploy
 # Use tunnel for fast iteration
 forge tunnel
 
+# Run linter
+forge lint
+
 # View logs
 forge logs
+```
+
+### Project Structure
+
+```
+re-mermaid/
+├── manifest.yml              # Forge app manifest
+├── src/index.ts              # Backend resolver functions
+└── static/
+    ├── shared/               # Shared React components
+    │   ├── components/       # MermaidRenderer, MermaidEditor, ErrorBoundary
+    │   ├── hooks/            # useDarkMode (with proper cleanup)
+    │   └── utils/            # SVG export utilities
+    ├── confluence-macro/     # Confluence Custom UI
+    └── jira-panel/           # Jira Custom UI
 ```
 
 ## Architecture
@@ -111,6 +130,23 @@ forge logs
 - AI tools can read and edit the source directly
 - Diagram survives even if the macro is removed
 - Version history preserved through Confluence
+
+### Security
+
+| Layer | Protection |
+|-------|------------|
+| SVG Output | Sanitized with [DOMPurify](https://github.com/cure53/DOMPurify) before DOM insertion |
+| Mermaid Config | `securityLevel: 'strict'` prevents script execution |
+| API Inputs | Validated pageId, issueKey, sourceName formats |
+| Concurrency | Version conflict detection prevents data loss |
+
+### Tech Stack
+
+- [Atlassian Forge](https://developer.atlassian.com/platform/forge/) - Cloud app platform
+- [React 18](https://react.dev/) - UI framework
+- [Vite](https://vitejs.dev/) - Build tool
+- [Mermaid.js 11](https://mermaid.js.org/) - Diagram rendering
+- [DOMPurify](https://github.com/cure53/DOMPurify) - XSS protection
 
 ## License
 
