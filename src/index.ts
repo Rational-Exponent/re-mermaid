@@ -4,9 +4,30 @@ const api = require('@forge/api').default;
 
 const resolver = new Resolver();
 
+// Input validation helpers
+const isValidPageId = (pageId) => {
+  return pageId && typeof pageId === 'string' && /^\d+$/.test(pageId);
+};
+
+const isValidIssueKey = (issueKey) => {
+  return issueKey && typeof issueKey === 'string' && /^[A-Z][A-Z0-9]*-\d+$/i.test(issueKey);
+};
+
+const isValidSourceName = (sourceName) => {
+  // sourceName is optional, but if provided must be a non-empty string
+  return sourceName === null || sourceName === undefined ||
+    (typeof sourceName === 'string' && sourceName.length > 0 && sourceName.length <= 255);
+};
+
 resolver.define('getPageContent', async ({ payload, context }) => {
   const { pageId } = payload;
-  const { cloudId } = context;
+
+  if (!isValidPageId(pageId)) {
+    return {
+      success: false,
+      error: 'Invalid page ID format'
+    };
+  }
 
   try {
     const response = await api.asApp().requestConfluence(
@@ -34,6 +55,20 @@ resolver.define('getPageContent', async ({ payload, context }) => {
 
 resolver.define('getMermaidSource', async ({ payload, context }) => {
   const { pageId, sourceName } = payload;
+
+  if (!isValidPageId(pageId)) {
+    return {
+      success: false,
+      error: 'Invalid page ID format'
+    };
+  }
+
+  if (!isValidSourceName(sourceName)) {
+    return {
+      success: false,
+      error: 'Invalid source name format'
+    };
+  }
 
   try {
     const response = await api.asApp().requestConfluence(
@@ -65,6 +100,28 @@ resolver.define('getMermaidSource', async ({ payload, context }) => {
 resolver.define('updateMermaidSource', async ({ payload, context }) => {
   const { pageId, sourceName, newSource, currentVersion } = payload;
 
+  // Input validation
+  if (!isValidPageId(pageId)) {
+    return {
+      success: false,
+      error: 'Invalid page ID format'
+    };
+  }
+
+  if (!isValidSourceName(sourceName)) {
+    return {
+      success: false,
+      error: 'Invalid source name format'
+    };
+  }
+
+  if (typeof newSource !== 'string') {
+    return {
+      success: false,
+      error: 'Invalid source content'
+    };
+  }
+
   try {
     const getResponse = await api.asApp().requestConfluence(
       route`/wiki/api/v2/pages/${pageId}?body-format=atlas_doc_format`
@@ -75,6 +132,17 @@ resolver.define('updateMermaidSource', async ({ payload, context }) => {
     }
 
     const page = await getResponse.json();
+
+    // Version validation to prevent race conditions (TOCTOU)
+    if (currentVersion && page.version.number !== currentVersion) {
+      return {
+        success: false,
+        error: 'Page has been modified by another user. Please refresh and try again.',
+        conflict: true,
+        serverVersion: page.version.number
+      };
+    }
+
     const adf = JSON.parse(page.body?.atlas_doc_format?.value || '{}');
 
     const updatedAdf = updateMermaidInAdf(adf, sourceName, newSource);
@@ -96,7 +164,7 @@ resolver.define('updateMermaidSource', async ({ payload, context }) => {
           },
           version: {
             number: page.version.number + 1,
-            message: `Updated Mermaid diagram: ${sourceName}`
+            message: `Updated Mermaid diagram: ${sourceName || 'default'}`
           }
         })
       }
@@ -104,6 +172,16 @@ resolver.define('updateMermaidSource', async ({ payload, context }) => {
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
+
+      // Check for version conflict from Confluence API
+      if (updateResponse.status === 409) {
+        return {
+          success: false,
+          error: 'Page was modified while saving. Please refresh and try again.',
+          conflict: true
+        };
+      }
+
       throw new Error(`Failed to update page: ${updateResponse.status} - ${errorText}`);
     }
 
@@ -121,6 +199,13 @@ resolver.define('updateMermaidSource', async ({ payload, context }) => {
 
 resolver.define('getPageHistory', async ({ payload }) => {
   const { pageId } = payload;
+
+  if (!isValidPageId(pageId)) {
+    return {
+      success: false,
+      error: 'Invalid page ID format'
+    };
+  }
 
   try {
     const response = await api.asApp().requestConfluence(
@@ -212,6 +297,13 @@ function updateMermaidInAdf(adf, sourceName, newSource) {
 
 resolver.define('getJiraIssue', async ({ payload }) => {
   const { issueKey } = payload;
+
+  if (!isValidIssueKey(issueKey)) {
+    return {
+      success: false,
+      error: 'Invalid issue key format'
+    };
+  }
 
   try {
     const response = await api.asApp().requestJira(
