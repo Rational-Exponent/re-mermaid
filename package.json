@@ -28,7 +28,7 @@
     "glob@>=10.2.0 <10.5.0": "^10.5.0"
   },
   "devDependencies": {
-    "@forge/cli": "^12.13.0"
+    "@forge/cli": "^12.13.1"
   },
   "dependencies": {
     "@forge/api": "^4.0.0",
